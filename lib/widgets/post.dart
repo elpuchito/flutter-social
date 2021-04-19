@@ -1,7 +1,11 @@
+import 'dart:async';
+
+import 'package:animator/animator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_social_app/pages/home.dart';
+import 'package:flutter_social_app/pages/profile_page.dart';
 import 'package:flutter_social_app/widgets/progress.dart';
 import '../models/user.dart';
 
@@ -67,6 +71,7 @@ class Post extends StatefulWidget {
 }
 
 class _PostState extends State<Post> {
+  final String currentUserId = currentUser?.id;
   final String postId;
   final String ownerId;
   final String username;
@@ -75,7 +80,8 @@ class _PostState extends State<Post> {
   final String mediaUrl;
   int likeCount;
   Map likes;
-
+  bool isLiked;
+  bool showBigHeart = false;
   _PostState({
     this.postId,
     this.ownerId,
@@ -86,6 +92,40 @@ class _PostState extends State<Post> {
     this.likes,
     this.likeCount,
   });
+
+  handleLikePost() {
+    bool _isLiked = likes[currentUserId] == true;
+
+    if (_isLiked) {
+      postsRef
+          .document(ownerId)
+          .collection('userPosts')
+          .document(postId)
+          .updateData({'likes.$currentUserId': false});
+      setState(() {
+        likeCount -= 1;
+        isLiked = false;
+        likes[currentUserId] = false;
+      });
+    } else if (!_isLiked) {
+      postsRef
+          .document(ownerId)
+          .collection('userPosts')
+          .document(postId)
+          .updateData({'likes.$currentUserId': true});
+      setState(() {
+        likeCount += 1;
+        isLiked = true;
+        likes[currentUserId] = true;
+        showBigHeart = true;
+        Timer(Duration(milliseconds: 500), () {
+          setState(() {
+            showBigHeart = false;
+          });
+        });
+      });
+    }
+  }
 
   Widget buildPostContainer() {
     return FutureBuilder(
@@ -98,17 +138,40 @@ class _PostState extends State<Post> {
         return Stack(
           children: [
             GestureDetector(
-              onDoubleTap: () => print('liking post'),
-              child: Container(
-                width: MediaQuery.of(context).size.width,
-                height: 500.0,
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                      fit: BoxFit.cover,
-                      image: NetworkImage(
-                          'https://m.media-amazon.com/images/I/311xwnjSKdL.jpg')),
-                  borderRadius: BorderRadius.all(Radius.circular(20.0)),
-                ),
+              onDoubleTap: handleLikePost,
+              child: Stack(
+                children: [
+                  Container(
+                    width: MediaQuery.of(context).size.width,
+                    height: 500.0,
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        fit: BoxFit.cover,
+                        image: CachedNetworkImageProvider(mediaUrl),
+                      ),
+                      borderRadius: BorderRadius.all(Radius.circular(20.0)),
+                    ),
+                  ),
+                  showBigHeart
+                      ? Animator(
+                          duration: Duration(milliseconds: 500),
+                          tween: Tween(begin: 0.8, end: 300),
+                          curve: Curves.elasticOut,
+                          cycles: 0,
+                          builder: (context, anim, child) => Center(
+                            child: Container(
+                              height: anim.value,
+                              width: anim.value,
+                              child: Icon(
+                                Icons.favorite,
+                                size: 150.0,
+                                color: Colors.pink,
+                              ),
+                            ),
+                          ),
+                        )
+                      : Text(""),
+                ],
               ),
             ),
             Container(
@@ -120,7 +183,11 @@ class _PostState extends State<Post> {
                   // SizedBox(
                   //   height: 350,
                   // ),
-                  PostFooter(likeCount: likeCount),
+                  PostFooter(
+                    likeCount: likeCount,
+                    isLiked: isLiked,
+                    handleLikePost: handleLikePost,
+                  ),
                 ],
               ),
             ),
@@ -132,7 +199,13 @@ class _PostState extends State<Post> {
 
   @override
   Widget build(BuildContext context) {
-    return Text("Post");
+    isLiked = (likes[currentUserId] == true);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        buildPostContainer(),
+      ],
+    );
   }
 }
 
@@ -151,7 +224,7 @@ class PostHeader extends StatelessWidget {
       title: GestureDetector(
         onTap: () => print('showing profile'),
         child: Text(
-          'elpuchito',
+          user.username,
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
@@ -177,8 +250,11 @@ class PostHeader extends StatelessWidget {
 
 class PostFooter extends StatelessWidget {
   final int likeCount;
+  final bool isLiked;
+  final Function handleLikePost;
 
-  const PostFooter({Key key, this.likeCount}) : super(key: key);
+  const PostFooter({Key key, this.likeCount, this.isLiked, this.handleLikePost})
+      : super(key: key);
   @override
   Widget build(BuildContext context) {
     return ListTile(
@@ -187,9 +263,9 @@ class PostFooter extends StatelessWidget {
         child: Row(
           children: [
             GestureDetector(
-              onTap: () => print('like this post'),
+              onTap: handleLikePost,
               child: Icon(
-                Icons.favorite_border,
+                isLiked ? Icons.favorite : Icons.favorite_border,
                 size: 28.0,
                 color: Colors.pink,
               ),

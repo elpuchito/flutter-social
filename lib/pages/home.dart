@@ -116,8 +116,8 @@ class _HomeState extends State<Home> {
           children: [
             // Timeline(),
             TextButton(
-              child: Text('logOut'),
-              onPressed: logOut,
+              child: Text('home'),
+              onPressed: () {},
             ),
             ActivityFeed(),
             Upload(currentUser: currentUser),

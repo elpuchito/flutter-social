@@ -1,6 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_social_app/models/user.dart';
+import 'package:flutter_social_app/widgets/post.dart';
+import 'package:flutter_social_app/widgets/post_tile.dart';
 import 'package:flutter_social_app/widgets/progress.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +14,7 @@ import 'home.dart';
 Color mainColor = Color(0xff774a63);
 Color secondColor = Color(0xffd6a5c0);
 Color backgroundColor = Color(0xfffcf1f2);
+final postsRef = Firestore.instance.collection('posts');
 
 class ProfilePage extends StatefulWidget {
   final String profileId;
@@ -22,6 +26,67 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   String currentUserId = currentUser?.id;
+  bool isLoading = false;
+  int postCount = 0;
+  String orientation = 'grid';
+  List<Post> posts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    getProfilePosts();
+  }
+
+  getProfilePosts() async {
+    setState(() {
+      isLoading = true;
+    });
+    QuerySnapshot snap = await postsRef
+        .document(widget.profileId)
+        .collection('userPosts')
+        .orderBy('timestamp', descending: true)
+        .getDocuments();
+    setState(() {
+      isLoading = false;
+      postCount = snap.documents.length;
+      posts = snap.documents.map((doc) => Post.fromDocument(doc)).toList();
+    });
+  }
+
+  void toggleOrientation(String orientation) {
+    setState(() {
+      this.orientation = orientation;
+    });
+  }
+
+  buildProfilePosts() {
+    if (isLoading) {
+      return circularProgress();
+    } else if (posts.isEmpty) {
+      return Center(
+        child: Text('This user has no posts '),
+      );
+    } else if (orientation == 'grid') {
+      List<GridTile> gridTiles = [];
+      posts.forEach((post) {
+        gridTiles.add(GridTile(child: PostTile(post: post)));
+      });
+      return GridView.count(
+        crossAxisCount: 3,
+        childAspectRatio: 1,
+        mainAxisSpacing: 0,
+        crossAxisSpacing: 0,
+        shrinkWrap: true,
+        physics: NeverScrollableScrollPhysics(),
+        children: gridTiles,
+      );
+    } else if (orientation == 'list') {
+      return Column(
+        children: posts,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion(
@@ -32,7 +97,7 @@ class _ProfilePageState extends State<ProfilePage> {
           systemNavigationBarIconBrightness: Brightness.dark),
       child: Scaffold(
         backgroundColor: Colors.white,
-        body: buildProfileHeader(),
+        body: buildProfileContainer(),
       ),
     );
   }
@@ -53,7 +118,23 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Widget buildProfileHeader() {
+  Widget tOrientationW() {
+    return Row(
+      children: [
+        IconButton(
+            icon: Icon(Icons.grid_on_outlined),
+            onPressed: () => toggleOrientation('grid')),
+        SizedBox(
+          width: 30,
+        ),
+        IconButton(
+            icon: Icon(Icons.list_outlined),
+            onPressed: () => toggleOrientation('list'))
+      ],
+    );
+  }
+
+  Widget buildProfileContainer() {
     var size = MediaQuery.of(context).size;
     return FutureBuilder(
         future: usersRef.document(widget.profileId).get(),
@@ -89,7 +170,16 @@ class _ProfilePageState extends State<ProfilePage> {
                       height: 15,
                     ),
                     buildEditButton(),
-                    SocialFeed(),
+                    SizedBox(
+                      height: 15,
+                    ),
+                    tOrientationW(),
+
+                    SizedBox(
+                      height: 15,
+                    ),
+                    // SocialFeed(),
+                    buildProfilePosts(),
                   ],
                 ),
                 Positioned(

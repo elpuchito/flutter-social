@@ -5,8 +5,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_social_app/models/user.dart';
+import 'package:flutter_social_app/widgets/progress.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:image/image.dart' as Im;
 
 class Upload extends StatefulWidget {
   final User currentUser;
@@ -23,6 +26,7 @@ class _UploadState extends State<Upload> {
   File file;
   bool isUploading = false;
   String postId = Uuid().v4();
+
   handleTakePicture() async {
     // final picker = ImagePicker();
 
@@ -112,6 +116,17 @@ class _UploadState extends State<Upload> {
     });
   }
 
+  compressImage() async {
+    final tempDir = await getTemporaryDirectory();
+    final path = tempDir.path;
+    Im.Image imageFile = Im.decodeImage(file.readAsBytesSync());
+    final compressedImageFile = File('$path/img_$postId.jpg')
+      ..writeAsBytesSync(Im.encodeJpg(imageFile, quality: 85));
+    setState(() {
+      file = compressedImageFile;
+    });
+  }
+
   Future<String> uploadImage(imageFile) async {
     StorageUploadTask uploadTask =
         storageRef.child("post_$postId.jpg").putFile(imageFile);
@@ -124,7 +139,7 @@ class _UploadState extends State<Upload> {
       {String mediaUrl,
       String location,
       String description,
-      String timestamp}) {
+      DateTime timestamp}) {
     postsRef
         .document(widget.currentUser.id)
         .collection("userPosts")
@@ -135,9 +150,27 @@ class _UploadState extends State<Upload> {
       "username": widget.currentUser.username,
       "mediaUrl": mediaUrl,
       "description": description,
-      "location": location,
       "timestamp": timestamp,
       "likes": {},
+    });
+  }
+
+  handleSubmit() async {
+    setState(() {
+      isUploading = true;
+    });
+
+    String mediaUrl = await uploadImage(file);
+    createPostInFirestore(
+      mediaUrl: mediaUrl,
+      description: captionController.text,
+    );
+    captionController.clear();
+
+    setState(() {
+      file = null;
+      isUploading = false;
+      postId = Uuid().v4();
     });
   }
 
@@ -151,13 +184,14 @@ class _UploadState extends State<Upload> {
         title: Text('caption post'),
         actions: [
           TextButton(
-            onPressed: () {},
+            onPressed: isUploading ? null : () => handleSubmit(),
             child: Text('post'),
           )
         ],
       ),
       body: ListView(
         children: [
+          isUploading ? linearProgress() : Text(""),
           Container(
             height: 220,
             width: MediaQuery.of(context).size.width,
@@ -186,6 +220,7 @@ class _UploadState extends State<Upload> {
             ),
             title: Container(
               child: TextField(
+                controller: captionController,
                 decoration: InputDecoration(
                     hintText: 'description..', border: InputBorder.none),
               ),
@@ -219,6 +254,7 @@ class _UploadState extends State<Upload> {
     );
   }
 
+  bool get wantKeepAlive => true;
   @override
   Widget build(BuildContext context) {
     return file == null ? buildSplahcScreen() : buildUploadForm();
