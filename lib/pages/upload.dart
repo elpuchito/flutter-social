@@ -11,6 +11,9 @@ import 'package:uuid/uuid.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as Im;
 
+final StorageReference storageRef = FirebaseStorage.instance.ref();
+final DateTime timestamp = DateTime.now();
+
 class Upload extends StatefulWidget {
   final User currentUser;
 
@@ -20,7 +23,6 @@ class Upload extends StatefulWidget {
 }
 
 class _UploadState extends State<Upload> {
-  final StorageReference storageRef = FirebaseStorage.instance.ref();
   final postsRef = Firestore.instance.collection('posts');
   TextEditingController captionController = TextEditingController();
   File file;
@@ -135,11 +137,11 @@ class _UploadState extends State<Upload> {
     return downloadUrl;
   }
 
-  createPostInFirestore(
-      {String mediaUrl,
-      String location,
-      String description,
-      DateTime timestamp}) {
+  createPostInFirestore({
+    String mediaUrl,
+    String location,
+    String description,
+  }) {
     postsRef
         .document(widget.currentUser.id)
         .collection("userPosts")

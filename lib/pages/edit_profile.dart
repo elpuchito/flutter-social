@@ -4,6 +4,7 @@ import "package:flutter/material.dart";
 import 'package:flutter_social_app/models/user.dart';
 import 'package:flutter_social_app/pages/home.dart';
 import 'package:flutter_social_app/widgets/progress.dart';
+import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 
 TextEditingController displayNmContrler = TextEditingController();
 TextEditingController bioContrler = TextEditingController();
@@ -74,16 +75,18 @@ class _EditProfileState extends State<EditProfile> {
       appBar: AppBar(
         elevation: 0.0,
         backgroundColor: Colors.white,
+        centerTitle: true,
         title: Text(
           'Edit Profile',
           style: TextStyle(
-            color: Colors.black,
+            fontSize: 30,
+            color: Colors.black87,
           ),
         ),
         actions: [
           IconButton(
               icon: Icon(
-                Icons.done,
+                Feather.check_circle,
                 size: 30,
                 color: Colors.black,
               ),

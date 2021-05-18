@@ -1,13 +1,18 @@
 import 'dart:async';
-
 import 'package:animator/animator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_social_app/pages/upload.dart';
+import 'package:flutter_social_app/pages/comments.dart';
 import 'package:flutter_social_app/pages/home.dart';
 import 'package:flutter_social_app/pages/profile_page.dart';
 import 'package:flutter_social_app/widgets/progress.dart';
+import 'package:flutter_vector_icons/flutter_vector_icons.dart';
+import "package:flutter_feather_icons/flutter_feather_icons.dart";
 import '../models/user.dart';
+
+final DateTime timestamp = DateTime.now();
 
 class Post extends StatefulWidget {
   final String postId;
@@ -102,6 +107,7 @@ class _PostState extends State<Post> {
           .collection('userPosts')
           .document(postId)
           .updateData({'likes.$currentUserId': false});
+      removeLikefromActivityFeed();
       setState(() {
         likeCount -= 1;
         isLiked = false;
@@ -113,6 +119,7 @@ class _PostState extends State<Post> {
           .collection('userPosts')
           .document(postId)
           .updateData({'likes.$currentUserId': true});
+      addLiketoActivityFeed();
       setState(() {
         likeCount += 1;
         isLiked = true;
@@ -127,6 +134,41 @@ class _PostState extends State<Post> {
     }
   }
 
+  addLiketoActivityFeed() {
+    bool isNotPostOwner = currentUserId != ownerId;
+    if (isNotPostOwner) {
+      activityFeedRef
+          .document(ownerId)
+          .collection("feedItems")
+          .document(postId)
+          .setData({
+        "type": "like",
+        "username": currentUser.username,
+        "userId": currentUser.id,
+        "userProfileImg": currentUser.photoUrl,
+        "postId": postId,
+        "mediaUrl": mediaUrl,
+        "timestamp": timestamp,
+      });
+    }
+  }
+
+  removeLikefromActivityFeed() {
+    bool isNotPostOwner = currentUserId != ownerId;
+    if (isNotPostOwner) {
+      activityFeedRef
+          .document(ownerId)
+          .collection("feedItems")
+          .document(postId)
+          .get()
+          .then((doc) {
+        if (doc.exists) {
+          doc.reference.delete();
+        }
+      });
+    }
+  }
+
   Widget buildPostContainer() {
     return FutureBuilder(
       future: usersRef.document(ownerId).get(),
@@ -135,6 +177,7 @@ class _PostState extends State<Post> {
           return circularProgress();
         }
         User user = User.fromDocument(snapshot.data);
+        bool isPostOwner = currentUserId == ownerId;
         return Stack(
           children: [
             GestureDetector(
@@ -179,7 +222,12 @@ class _PostState extends State<Post> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  PostHeader(user: user),
+                  PostHeader(
+                    user: user,
+                    postId: postId,
+                    ownerId: ownerId,
+                    isPostOwner: isPostOwner,
+                  ),
                   // SizedBox(
                   //   height: 350,
                   // ),
@@ -197,6 +245,55 @@ class _PostState extends State<Post> {
     );
   }
 
+  Widget buildDescriptionW() {
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Container(
+              margin: EdgeInsets.only(left: 20.0),
+              child: Text(
+                "$username ",
+                style: TextStyle(
+                  color: Colors.black,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            Expanded(
+                child: Text(description,
+                    style: TextStyle(
+                      color: Colors.black87,
+                    )))
+          ],
+        ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Container(
+                margin: EdgeInsets.only(left: 20.0),
+                child: TextButton(
+                  child: Text(
+                    'View all comments',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onPressed: () => showComments(
+                    context,
+                    postId: postId,
+                    ownerId: ownerId,
+                    mediaUrl: mediaUrl,
+                  ),
+                )),
+          ],
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     isLiked = (likes[currentUserId] == true);
@@ -204,6 +301,21 @@ class _PostState extends State<Post> {
       mainAxisSize: MainAxisSize.min,
       children: [
         buildPostContainer(),
+        SizedBox(
+          height: 10,
+        ),
+        buildDescriptionW(),
+        SizedBox(
+          height: 10,
+        ),
+        // Divider(
+        //   indent: 20,
+        //   endIndent: 20,
+        //   color: Colors.black38,
+        // ),
+        SizedBox(
+          height: 15,
+        ),
       ],
     );
   }
@@ -211,41 +323,115 @@ class _PostState extends State<Post> {
 
 //custom widgets
 class PostHeader extends StatelessWidget {
+  final bool isPostOwner;
   final User user;
+  final String postId;
+  final String ownerId;
 
-  const PostHeader({Key key, this.user}) : super(key: key);
+  deletePost() async {
+    postsRef
+        .document(ownerId)
+        .collection('userPosts')
+        .document(postId)
+        .get()
+        .then((doc) {
+      if (doc.exists) {
+        doc.reference.delete();
+      }
+    });
+    // delete uploaded image for thep ost
+    storageRef.child("post_$postId.jpg").delete();
+    // then delete all activity feed notifications
+    QuerySnapshot activityFeedSnapshot = await activityFeedRef
+        .document(ownerId)
+        .collection("feedItems")
+        .where('postId', isEqualTo: postId)
+        .getDocuments();
+    activityFeedSnapshot.documents.forEach((doc) {
+      if (doc.exists) {
+        doc.reference.delete();
+      }
+    });
+    // then delete all comments
+    QuerySnapshot commentsSnapshot = await commentsRef
+        .document(postId)
+        .collection('comments')
+        .getDocuments();
+    commentsSnapshot.documents.forEach((doc) {
+      if (doc.exists) {
+        doc.reference.delete();
+      }
+    });
+  }
+
+  const PostHeader(
+      {Key key, this.user, this.postId, this.ownerId, this.isPostOwner})
+      : super(key: key);
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: CircleAvatar(
-        backgroundImage: CachedNetworkImageProvider(user.photoUrl),
-        backgroundColor: Colors.grey,
-      ),
-      title: GestureDetector(
-        onTap: () => print('showing profile'),
-        child: Text(
-          user.username,
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+        leading: CircleAvatar(
+          backgroundImage: CachedNetworkImageProvider(user.photoUrl),
+          backgroundColor: Colors.grey,
+        ),
+        title: GestureDetector(
+          onTap: () => print('showing profile'),
+          child: Text(
+            user.username,
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-      ),
-      subtitle: Text(
-        'Boca Chica, Texas',
-        style: TextStyle(
-          color: Colors.white54,
-          fontWeight: FontWeight.normal,
+        subtitle: Text(
+          'Boca Chica, Texas',
+          style: TextStyle(
+            color: Colors.white54,
+            fontWeight: FontWeight.normal,
+          ),
         ),
-      ),
-      trailing: IconButton(
-          onPressed: () => print('deleting post'),
-          icon: Icon(
-            Icons.more_vert,
-            color: Colors.white,
-          )),
-    );
+        trailing: isPostOwner
+            ? PopupMenuButton(
+                icon: Icon(Icons.more_vert, color: Colors.white),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(15.0)),
+                itemBuilder: (BuildContext bc) => [
+                  PopupMenuItem(
+                    child: Text('Delete this post?'),
+                  ),
+                  PopupMenuItem(
+                    child: TextButton(
+                      onPressed: () {
+                        deletePost();
+                      },
+                      child: Text(
+                        'Delete',
+                        style: TextStyle(color: Colors.black),
+                      ),
+                    ),
+                  ),
+                ],
+              )
+            : Text(''));
   }
+
+  // handleDeletePost(BuildContext parentContext) {
+  //   return PopupMenuButton(
+  //     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+  //     itemBuilder: (BuildContext bc) => [
+  //       PopupMenuItem(
+  //         child: TextButton(
+  //           onPressed: () => print('hello'),
+  //           child: Text(
+  //             'Delete',
+  //             style: TextStyle(color: Colors.black),
+  //           ),
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
 }
 
 class PostFooter extends StatelessWidget {
@@ -253,7 +439,18 @@ class PostFooter extends StatelessWidget {
   final bool isLiked;
   final Function handleLikePost;
 
-  const PostFooter({Key key, this.likeCount, this.isLiked, this.handleLikePost})
+  final postId;
+  final ownerId;
+  final mediaUrl;
+
+  const PostFooter(
+      {Key key,
+      this.likeCount,
+      this.isLiked,
+      this.handleLikePost,
+      this.postId,
+      this.ownerId,
+      this.mediaUrl})
       : super(key: key);
   @override
   Widget build(BuildContext context) {
@@ -281,9 +478,14 @@ class PostFooter extends StatelessWidget {
             ),
             Padding(padding: EdgeInsets.only(right: 20.0)),
             GestureDetector(
-              onTap: () => print('showing comments'),
+              onTap: () => showComments(
+                context,
+                postId: postId,
+                ownerId: ownerId,
+                mediaUrl: mediaUrl,
+              ),
               child: Icon(
-                Icons.chat,
+                Feather.message_circle,
                 size: 28.0,
                 color: Colors.white,
               ),
@@ -294,9 +496,20 @@ class PostFooter extends StatelessWidget {
       trailing: IconButton(
           onPressed: () => print('deleting post'),
           icon: Icon(
-            Icons.save,
+            Feather.pocket,
             color: Colors.white,
           )),
     );
   }
+}
+
+showComments(BuildContext context,
+    {String postId, String ownerId, String mediaUrl}) {
+  Navigator.push(context, MaterialPageRoute(builder: (context) {
+    return Comments(
+      postId: postId,
+      postOwnerId: ownerId,
+      postMediaUrl: mediaUrl,
+    );
+  }));
 }

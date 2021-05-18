@@ -1,7 +1,15 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_social_app/pages/home.dart';
+import 'package:flutter_social_app/pages/test_video_signIn.dart';
+import 'package:flutter_social_app/test_image_signin.dart';
 
 void main() {
+  // Firestore.instance.settings(timestampsInSnapshotsEnabled: true).then((_) {
+  //   print('timestamps enabed in snapshot');
+  // }, onError: (_) {
+  //   print('error enabling timestamps');
+  // });
   runApp(MyApp());
 }
 

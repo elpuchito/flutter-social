@@ -4,19 +4,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_social_app/models/user.dart';
 import 'package:flutter_social_app/pages/activity_feed.dart';
 import 'package:flutter_social_app/pages/create_account.dart';
-
+import 'package:flutter_social_app/pages/test_video_signIn.dart';
+import 'package:flutter_vector_icons/flutter_vector_icons.dart';
 import 'package:flutter_social_app/pages/timeline.dart';
 import 'package:flutter_social_app/pages/upload.dart';
 import 'package:flutter_social_app/pages/search.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/services.dart';
 
-import '../test.dart';
+import '../test_firestore.dart';
 import 'profile_page.dart';
 
 GoogleSignIn googleSignIn = GoogleSignIn();
 final usersRef = Firestore.instance.collection('users');
-final DateTime timeStamp = DateTime.now();
+final commentsRef = Firestore.instance.collection('comments');
+final activityFeedRef = Firestore.instance.collection('feed');
+final followersRef = Firestore.instance.collection('followers');
+final followingRef = Firestore.instance.collection('following');
+final timelineRef = Firestore.instance.collection('timeline');
+final DateTime timestamp = DateTime.now();
 User currentUser;
 
 class Home extends StatefulWidget {
@@ -42,7 +48,7 @@ class _HomeState extends State<Home> {
     googleSignIn.signInSilently(suppressErrors: false).then((account) {
       handleSignIn(account);
     }).catchError((e) {
-      print('error signn in: $e');
+      print('error signn in silently: $e');
     });
   }
 
@@ -84,7 +90,7 @@ class _HomeState extends State<Home> {
         'email': user.email,
         'displayName': user.displayName,
         'bio': '',
-        'timestamp': timeStamp,
+        'timestamp': timestamp,
       });
       doc = await usersRef.document(user.id).get();
     }
@@ -112,14 +118,16 @@ class _HomeState extends State<Home> {
           systemNavigationBarColor: Colors.white,
           systemNavigationBarIconBrightness: Brightness.dark),
       child: Scaffold(
+        extendBody: true,
         body: PageView(
           children: [
-            // Timeline(),
-            TextButton(
-              child: Text('home'),
-              onPressed: () {},
-            ),
-            ActivityFeed(),
+            // AddUser(),
+            Timeline(),
+            // TextButton(
+            //   child: Text('home'),
+            //   onPressed: () {},
+            // ),
+            // ActivityFeed(),
             Upload(currentUser: currentUser),
             Search(),
             // Profile(profileId: currentUser?.id),
@@ -130,17 +138,41 @@ class _HomeState extends State<Home> {
           controller: pagecontroller,
           onPageChanged: pageChange,
         ),
-        bottomNavigationBar: CupertinoTabBar(
-          currentIndex: pageIndex,
-          onTap: onTapH,
-          activeColor: Theme.of(context).primaryColor,
-          items: [
-            BottomNavigationBarItem(icon: Icon(Icons.whatshot)),
-            BottomNavigationBarItem(icon: Icon(Icons.notifications_active)),
-            BottomNavigationBarItem(icon: Icon(Icons.photo_camera)),
-            BottomNavigationBarItem(icon: Icon(Icons.search)),
-            BottomNavigationBarItem(icon: Icon(Icons.account_circle)),
-          ],
+        bottomNavigationBar: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.only(
+                topRight: Radius.circular(30), topLeft: Radius.circular(30)),
+            boxShadow: [
+              BoxShadow(color: Colors.black38, spreadRadius: 0, blurRadius: 10),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20.0),
+              topRight: Radius.circular(20.0),
+            ),
+            child: BottomNavigationBar(
+              iconSize: 26,
+              currentIndex: pageIndex,
+              onTap: onTapH,
+              selectedItemColor: Colors.black,
+              unselectedItemColor: Colors.grey,
+              items: [
+                BottomNavigationBarItem(label: '', icon: Icon(Icons.whatshot)),
+                // BottomNavigationBarItem(label: '', icon: Icon(Feather.heart)),
+                BottomNavigationBarItem(
+                  label: '',
+                  icon: Icon(Feather.plus_circle),
+                ),
+                BottomNavigationBarItem(
+                    label: '',
+                    icon: Icon(
+                      Feather.search,
+                    )),
+                BottomNavigationBarItem(label: '', icon: Icon(Feather.user)),
+              ],
+            ),
+          ),
         ),
       ),
     );
